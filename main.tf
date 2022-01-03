@@ -1,3 +1,16 @@
+terraform {
+  required_version = ">= 0.13"
+
+  required_providers {
+    aws = {
+      source = "hashicorp/aws"
+    }
+    template = {
+      source = "hashicorp/template"
+    }
+  }
+}
+
 data "template_file" "user_data" {
   template = file("${path.module}/templates/user-data.txt")
 
