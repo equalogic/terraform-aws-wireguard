@@ -1,10 +1,10 @@
 resource "aws_security_group" "sg_wireguard_external" {
-  name        = "wireguard-${var.env}-external"
-  description = "Terraform Managed. Allow Wireguard client traffic from internet."
+  name        = "wireguard-${var.env}"
+  description = "Wireguard Server"
   vpc_id      = var.vpc_id
 
   tags = {
-    Name       = "wireguard-${var.env}-external"
+    Name       = "wireguard-${var.env}"
     Project    = "wireguard"
     tf-managed = "True"
     env        = var.env
