@@ -37,18 +37,18 @@ data "template_file" "wg_client_data_json" {
   }
 }
 
-# We're using ubuntu images - this lets us grab the latest image for our region from Canonical
-data "aws_ami" "ubuntu" {
+# Automatically find the latest version of our operating system image (e.g. Ubuntu)
+data "aws_ami" "os" {
   most_recent = true
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-*-16.04-amd64-server-*"]
+    values = ["${var.ami_prefix}-${var.ami_release}-${var.ami_arch}-server-*"]
   }
   filter {
     name   = "virtualization-type"
     values = ["hvm"]
   }
-  owners = ["099720109477"] # Canonical
+  owners = [var.ami_owner_id]
 }
 
 # turn the sg into a sorted list of string
@@ -63,7 +63,7 @@ locals {
 
 resource "aws_launch_configuration" "wireguard_launch_config" {
   name_prefix                 = "wireguard-${var.env}-"
-  image_id                    = var.ami_id == null ? data.aws_ami.ubuntu.id : var.ami_id
+  image_id                    = var.ami_id != null ? var.ami_id : data.aws_ami.os.id
   instance_type               = var.instance_type
   key_name                    = var.ssh_key_id
   iam_instance_profile        = (var.use_eip ? aws_iam_instance_profile.wireguard_profile[0].name : null)

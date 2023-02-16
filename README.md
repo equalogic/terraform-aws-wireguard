@@ -15,27 +15,31 @@ Before using this module, you'll need to generate a key pair for your server and
 - Add each client's public key, along with the next available IP address to the wg_clients list. See Usage for details.
 
 ## Variables
-| Variable Name | Type | Required |Description |
-|---------------|-------------|-------------|-------------|
-|`subnet_ids`|`list`|Yes|A list of subnets for the Autoscaling Group to use for launching instances. May be a single subnet, but it must be an element in a list.|
-|`ssh_key_id`|`string`|Yes|A SSH public key ID to add to the VPN instance.|
-|`vpc_id`|`string`|Yes|The VPC ID in which Terraform will launch the resources.|
-|`env`|`string`|Optional - defaults to `prod`|The name of environment for WireGuard. Used to differentiate multiple deployments.|
-|`use_eip`|`bool`|Optional|Whether to attach an [Elastic IP](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/elastic-ip-addresses-eip.html) address to the VPN server. Useful for avoiding changing IPs.|
-|`eip_id`|`string`|Optional|When `use_eip` is enabled, specify the ID of the Elastic IP to which the VPN server will attach.|
-|`target_group_arns`|`string`|Optional|The Loadbalancer Target Group to which the vpn server ASG will attach.|
-|`additional_security_group_ids`|`list`|Optional|Used to allow added access to reach the WG servers or allow loadbalancer health checks.|
-|`asg_min_size`|`integer`|Optional - default to `1`|Number of VPN servers to permit minimum, only makes sense in loadbalanced scenario.|
-|`asg_desired_capacity`|`integer`|Optional - default to `1`|Number of VPN servers to maintain, only makes sense in loadbalanced scenario.|
-|`asg_max_size`|`integer`|Optional - default to `1`|Number of VPN servers to permit maximum, only makes sense in loadbalanced scenario.|
-|`instance_type`|`string`|Optional - defaults to `t2.micro`|Instance Size of VPN server.|
-|`wg_server_net`|`cidr address and netmask`|Yes|The server ip allocation and net - wg_clients entries MUST be in this netmask range.|
-|`wg_clients`|`list`|Yes|List of client objects with IP and public key. See Usage for details. See Examples for formatting.|
-|`wg_server_port`|`integer`|Optional - defaults to `51820`|Port to run wireguard service on, wireguard standard is 51820.|
-|`wg_persistent_keepalive`|`integer`|Optional - defaults to `25`|Regularity of Keepalives, useful for NAT stability.|
-|`wg_server_private_key_param`|`string`|Optional - defaults to `/wireguard/wg-server-private-key`|The Parameter Store key to use for the VPN server Private Key.|
-|`ami_id`|`string`|Optional - defaults to the newest Ubuntu 16.04 AMI|AMI to use for the VPN server.|
-|`wg_server_interface`|`string`|Optional - defaults to eth0|Server interface to route traffic to for installations forwarding traffic to private networks.|
+| Variable Name                   | Type                       | Required                                                  | Description                                                                                                                                                                       |
+|---------------------------------|----------------------------|-----------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `subnet_ids`                    | `list`                     | Yes                                                       | A list of subnets for the Autoscaling Group to use for launching instances. May be a single subnet, but it must be an element in a list.                                          |
+| `ssh_key_id`                    | `string`                   | Yes                                                       | A SSH public key ID to add to the VPN instance.                                                                                                                                   |
+| `vpc_id`                        | `string`                   | Yes                                                       | The VPC ID in which Terraform will launch the resources.                                                                                                                          |
+| `env`                           | `string`                   | Optional - defaults to `prod`                             | The name of environment for WireGuard. Used to differentiate multiple deployments.                                                                                                |
+| `use_eip`                       | `bool`                     | Optional                                                  | Whether to attach an [Elastic IP](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/elastic-ip-addresses-eip.html) address to the VPN server. Useful for avoiding changing IPs. |
+| `eip_id`                        | `string`                   | Optional                                                  | When `use_eip` is enabled, specify the ID of the Elastic IP to which the VPN server will attach.                                                                                  |
+| `target_group_arns`             | `string`                   | Optional                                                  | The Loadbalancer Target Group to which the vpn server ASG will attach.                                                                                                            |
+| `additional_security_group_ids` | `list`                     | Optional                                                  | Used to allow added access to reach the WG servers or allow loadbalancer health checks.                                                                                           |
+| `asg_min_size`                  | `integer`                  | Optional - default to `1`                                 | Number of VPN servers to permit minimum, only makes sense in loadbalanced scenario.                                                                                               |
+| `asg_desired_capacity`          | `integer`                  | Optional - default to `1`                                 | Number of VPN servers to maintain, only makes sense in loadbalanced scenario.                                                                                                     |
+| `asg_max_size`                  | `integer`                  | Optional - default to `1`                                 | Number of VPN servers to permit maximum, only makes sense in loadbalanced scenario.                                                                                               |
+| `instance_type`                 | `string`                   | Optional - defaults to `t2.micro`                         | Instance Size of VPN server.                                                                                                                                                      |
+| `wg_server_net`                 | `cidr address and netmask` | Yes                                                       | The server ip allocation and net - wg_clients entries MUST be in this netmask range.                                                                                              |
+| `wg_clients`                    | `list`                     | Yes                                                       | List of client objects with IP and public key. See Usage for details. See Examples for formatting.                                                                                |
+| `wg_server_port`                | `integer`                  | Optional - defaults to `51820`                            | Port to run wireguard service on, wireguard standard is 51820.                                                                                                                    |
+| `wg_persistent_keepalive`       | `integer`                  | Optional - defaults to `25`                               | Regularity of Keepalives, useful for NAT stability.                                                                                                                               |
+| `wg_server_private_key_param`   | `string`                   | Optional - defaults to `/wireguard/wg-server-private-key` | The Parameter Store key to use for the VPN server Private Key.                                                                                                                    |
+| `ami_id`                        | `string`                   | Optional - defaults to `null`                             | AMI to use for the VPN server. Determined automatically if not specified.                                                                                                         |
+| `ami_prefix`                    | `string`                   | Optional - defaults to `ubuntu/images/hvm-ssd/ubuntu`     | Prefix to look for in AMI name when automatically choosing an image.                                                                                                              |
+| `ami_release`                   | `string`                   | Optional - defaults to `focal-20.04`                      | OS release to look for in AMI name when automatically choosing an image.                                                                                                          |
+| `ami_arch`                      | `string`                   | Optional - defaults to `amd64`                            | Architecture to look for in AMI name when automatically choosing an image. Ensure this is appropriate for your chosen instance_type.                                              |
+| `ami_owner_id`                  | `string`                   | Optional - defaults to `099720109477` (amazon)            | Look for an AMI with this owner account ID when automatically choosing an image.                                                                                                  |
+| `wg_server_interface`           | `string`                   | Optional - defaults to eth0                               | Server interface to route traffic to for installations forwarding traffic to private networks.                                                                                    |
 
 ## Examples
 
