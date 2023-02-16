@@ -32,7 +32,7 @@ variable "subnet_ids" {
 }
 
 variable "wg_clients" {
-  type        = list(object({ name=string, public_key=string, client_ip=string }))
+  type        = list(object({ name = string, public_key = string, client_ip = string }))
   description = "List of client objects with IP and public key. See Usage in README for details."
 }
 
@@ -86,7 +86,27 @@ variable "wg_server_private_key_param" {
 
 variable "ami_id" {
   default     = null # we check for this and use a data provider since we can't use it here
-  description = "The AWS AMI to use for the WG server, defaults to the latest Ubuntu 16.04 AMI if not specified."
+  description = "The AWS AMI to use for the WG server, defaults to an Ubuntu AMI if not specified."
+}
+
+variable "ami_prefix" {
+  default     = "ubuntu/images/hvm-ssd/ubuntu"
+  description = "Prefix to look for in AMI name when automatically choosing an image."
+}
+
+variable "ami_release" {
+  default     = "focal-20.04"
+  description = "OS release to look for in AMI name when automatically choosing an image."
+}
+
+variable "ami_arch" {
+  default     = "amd64"
+  description = "Architecture to look for in AMI name when automatically choosing an image. Ensure this is appropriate for your chosen instance_type."
+}
+
+variable "ami_owner_id" {
+  default     = "099720109477"
+  description = "Look for an AMI with this owner account ID when automatically choosing an image."
 }
 
 variable "wg_server_interface" {
