@@ -96,4 +96,10 @@ resource "aws_autoscaling_group" "wireguard_asg" {
     value = aws_launch_configuration.wireguard_launch_config.name
     propagate_at_launch = true
   }
+
+  tag {
+    key = "env"
+    value = var.env
+    propagate_at_launch = true
+  }
 }
