@@ -113,3 +113,10 @@ variable "wg_server_interface" {
   default     = "eth0"
   description = "The default interface to forward network traffic to."
 }
+
+variable "install_ssm" {
+  description = "Whether to install the Amazon SSM Agent on the EC2 instances"
+  type        = bool
+  default     = true
+}
+

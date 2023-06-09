@@ -33,7 +33,7 @@ resource "aws_iam_role" "wireguard_role" {
   description        = "Terraform Managed. Role to allow Wireguard instance to attach EIP."
   path               = "/"
   assume_role_policy = data.aws_iam_policy_document.ec2_assume_role.json
-  count              = (var.use_eip ? 1 : 0) # only used for EIP mode
+  count              = (var.use_eip || var.install_ssm ? 1 : 0) # only used for EIP mode
 }
 
 resource "aws_iam_role_policy_attachment" "wireguard_roleattach" {
@@ -42,8 +42,14 @@ resource "aws_iam_role_policy_attachment" "wireguard_roleattach" {
   count      = (var.use_eip ? 1 : 0) # only used for EIP mode
 }
 
+resource "aws_iam_role_policy_attachment" "ssm_policy_attachment" {
+  role       = aws_iam_role.wireguard_role[0].name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM"
+  count      = var.install_ssm ? 1 : 0
+}
+
 resource "aws_iam_instance_profile" "wireguard_profile" {
   name  = "tf-wireguard-${var.env}"
   role  = aws_iam_role.wireguard_role[0].name
-  count = (var.use_eip ? 1 : 0) # only used for EIP mode
+  count = (var.use_eip || var.install_ssm ? 1 : 0) # only used for EIP mode
 }
