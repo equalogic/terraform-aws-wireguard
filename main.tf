@@ -23,6 +23,7 @@ data "template_file" "user_data" {
     install_ssm           = var.install_ssm ? "enabled" : "disabled"
     eip_id                = var.eip_id
     wg_server_interface   = var.wg_server_interface
+    arch                  = var.ami_arch
   }
 }
 
