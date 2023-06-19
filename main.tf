@@ -73,7 +73,7 @@ resource "aws_launch_template" "wireguard_launch_config" {
   }))
 
   network_interfaces {
-    associate_public_ip_address = true
+    associate_public_ip_address = var.use_eip
     security_groups             = local.security_groups_ids
   }
 
