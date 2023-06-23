@@ -5,21 +5,6 @@ terraform {
     aws = {
       source = "hashicorp/aws"
     }
-    template = {
-      source = "hashicorp/template"
-    }
-  }
-}
-
-data "template_file" "wg_client_data_json" {
-  template = file("${path.module}/templates/client-data.tpl")
-  count    = length(var.wg_clients)
-
-  vars = {
-    client_name          = var.wg_clients[count.index].name
-    client_pub_key       = var.wg_clients[count.index].public_key
-    client_ip            = var.wg_clients[count.index].client_ip
-    persistent_keepalive = var.wg_persistent_keepalive
   }
 }
 
@@ -49,6 +34,10 @@ locals {
 
 locals {
   launch_name_prefix = "wireguard-${var.env}-"
+  wg_client_data = templatefile("${path.module}/templates/client-data.tftpl", {
+    users = var.wg_clients,
+    persistent_keepalive = var.wg_persistent_keepalive
+  })
 }
 
 resource "aws_launch_template" "wireguard_launch_config" {
@@ -60,11 +49,11 @@ resource "aws_launch_template" "wireguard_launch_config" {
     arn = (var.use_eip || var.install_ssm ? aws_iam_instance_profile.wireguard_profile[0].arn : null)
   }
 
-  user_data = base64encode(templatefile("${path.module}/templates/user-data.txt", {
+  user_data = base64encode(templatefile("${path.module}/templates/user-data.tftpl", {
     wg_server_private_key = data.aws_ssm_parameter.wg_server_private_key.value
     wg_server_net         = var.wg_server_net
     wg_server_port        = var.wg_server_port
-    peers                 = join("\n", data.template_file.wg_client_data_json.*.rendered)
+    peers                 = local.wg_client_data
     use_eip               = var.use_eip ? "enabled" : "disabled"
     install_ssm           = var.install_ssm ? "enabled" : "disabled"
     eip_id                = var.eip_id
