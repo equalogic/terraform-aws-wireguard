@@ -28,13 +28,12 @@ if [ "${use_eip}" != "disabled" ]; then
   aws --region $${REGION} ec2 associate-address --allocation-id ${eip_id} --instance-id $${INSTANCE_ID}
 fi
 
-# Install the ssm if it is enabled
+# Install the ssm if it is enabled (installed by default on Ubuntu Server22.04
+# LTS, 20.10 STR & 20.04, 18.04, and 16.04 LTS (with Snap))
 if [ "${install_ssm}" = "enabled" ]; then
-  export REGION=$(curl -fsq http://169.254.169.254/latest/meta-data/placement/availability-zone | sed 's/[a-z]$//')
-  curl https://amazon-ssm-$${REGION}.s3.$${REGION}.amazonaws.com/latest/debian_${arch}/amazon-ssm-agent.deb -o /tmp/amazon-ssm-agent.deb
-  dpkg -i /tmp/amazon-ssm-agent.deb
-  systemctl start amazon-ssm-agent
-  systemctl enable amazon-ssm-agent
+  # https://docs.aws.amazon.com/systems-manager/latest/userguide/agent-install-ubuntu-64-snap.html
+  systemctl enable snap.amazon-ssm-agent.amazon-ssm-agent.service
+  systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service
 fi
 
 # reduce MTU to prevent packet fragmentation with NAT
