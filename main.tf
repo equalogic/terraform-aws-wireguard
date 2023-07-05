@@ -35,7 +35,7 @@ locals {
 locals {
   launch_name_prefix = "wireguard-${var.env}-"
   wg_client_data = templatefile("${path.module}/templates/client-data.tftpl", {
-    users = var.wg_clients,
+    users                = var.wg_clients,
     persistent_keepalive = var.wg_persistent_keepalive
   })
 }
@@ -47,6 +47,10 @@ resource "aws_launch_template" "wireguard_launch_config" {
   key_name      = var.ssh_key_id
   iam_instance_profile {
     arn = (var.use_eip || var.install_ssm ? aws_iam_instance_profile.wireguard_profile[0].arn : null)
+  }
+
+  metadata_options {
+    http_tokens = "required"
   }
 
   user_data = base64encode(templatefile("${path.module}/templates/user-data.tftpl", {
