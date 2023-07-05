@@ -46,7 +46,7 @@ resource "aws_launch_template" "wireguard_launch_config" {
   instance_type = var.instance_type
   key_name      = var.ssh_key_id
   iam_instance_profile {
-    arn = (var.use_eip || var.install_ssm ? aws_iam_instance_profile.wireguard_profile[0].arn : null)
+    arn = aws_iam_instance_profile.wireguard_profile.arn
   }
 
   metadata_options {
@@ -54,15 +54,15 @@ resource "aws_launch_template" "wireguard_launch_config" {
   }
 
   user_data = base64encode(templatefile("${path.module}/templates/user-data.tftpl", {
-    wg_server_private_key = data.aws_ssm_parameter.wg_server_private_key.value
-    wg_server_net         = var.wg_server_net
-    wg_server_port        = var.wg_server_port
-    peers                 = local.wg_client_data
-    use_eip               = var.use_eip ? "enabled" : "disabled"
-    install_ssm           = var.install_ssm ? "enabled" : "disabled"
-    eip_id                = var.eip_id
-    wg_server_interface   = var.wg_server_interface
-    arch                  = var.ami_arch
+    wg_server_private_key_param = var.wg_server_private_key_param
+    wg_server_net               = var.wg_server_net
+    wg_server_port              = var.wg_server_port
+    peers                       = local.wg_client_data
+    use_eip                     = var.use_eip ? "enabled" : "disabled"
+    install_ssm                 = var.install_ssm ? "enabled" : "disabled"
+    eip_id                      = var.eip_id
+    wg_server_interface         = var.wg_server_interface
+    arch                        = var.ami_arch
   }))
 
   network_interfaces {

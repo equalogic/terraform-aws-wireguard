@@ -10,10 +10,18 @@ else
     INTERFACE="${wg_server_interface}"
 fi
 
+TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" -s)
+REGION=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -fsq http://169.254.169.254/latest/meta-data/placement/availability-zone | sed 's/[a-z]$//')
+PRIVATE_KEY=$(
+  aws ssm get-parameter --name ${wg_server_private_key_param} \
+  --region $${REGION} --query='Parameter.Value' \
+  --output=text --with-decryption
+)
+
 cat > /etc/wireguard/wg0.conf <<- EOF
 [Interface]
 Address = ${wg_server_net}
-PrivateKey = ${wg_server_private_key}
+PrivateKey = $${PRIVATE_KEY}
 ListenPort = ${wg_server_port}
 PostUp   = iptables -A FORWARD -i %i -j ACCEPT; iptables -A FORWARD -o %i -j ACCEPT; iptables -t nat -A POSTROUTING -o $${INTERFACE} -j MASQUERADE
 PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -D FORWARD -o %i -j ACCEPT; iptables -t nat -D POSTROUTING -o $${INTERFACE} -j MASQUERADE
@@ -23,10 +31,8 @@ EOF
 
 # we go with the eip if it is provided
 if [ "${use_eip}" != "disabled" ]; then
-  token=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" -s)
-  instance_id=$(curl -H "X-aws-ec2-metadata-token: $token" -s http://169.254.169.254/latest/meta-data/instance-id)
-  region=$(curl -H "X-aws-ec2-metadata-token: $token" -fsq http://169.254.169.254/latest/meta-data/placement/availability-zone | sed 's/[a-z]$//')
-  aws --region $${region} ec2 associate-address --allocation-id ${eip_id} --instance-id $${instance_id}
+  INSTANCE_ID=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -s http://169.254.169.254/latest/meta-data/instance-id)
+  aws --region $${REGION} ec2 associate-address --allocation-id ${eip_id} --instance-id $${INSTANCE_ID}
 fi
 
 # Install the ssm if it is enabled (installed by default on Ubuntu Server22.04
