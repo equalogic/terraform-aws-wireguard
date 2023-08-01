@@ -68,7 +68,7 @@ resource "aws_iam_role_policy_attachment" "wireguard_roleattach" {
 
 resource "aws_iam_role_policy_attachment" "ssm_policy_attachment" {
   role       = aws_iam_role.wireguard_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM"
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
   count      = var.install_ssm ? 1 : 0
 }
 
