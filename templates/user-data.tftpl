@@ -1,0 +1,66 @@
+#!/bin/bash -v
+apt-get update -y
+DEBIAN_FRONTEND=noninteractive apt-get upgrade -y -o Dpkg::Options::="--force-confnew"
+apt-get install -y wireguard-tools awscli
+
+# Find interface if not defined
+if [ -z "${wg_server_interface}" ]; then
+    INTERFACE=$(ip -o -4 route show to default | awk '{print $5}')
+else
+    INTERFACE="${wg_server_interface}"
+fi
+
+TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" -s)
+REGION=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -fsq http://169.254.169.254/latest/meta-data/placement/availability-zone | sed 's/[a-z]$//')
+PRIVATE_KEY=$(
+  aws ssm get-parameter --name ${wg_server_private_key_param} \
+  --region $${REGION} --query='Parameter.Value' \
+  --output=text --with-decryption
+)
+
+read -ra wg_allowed_cidr_blocks <<< "${wg_allowed_cidr_blocks}"
+
+POST_UP_RULES=""
+POST_DOWN_RULES=""
+for CIDR in "$${wg_allowed_cidr_blocks[@]}"; do
+    POST_UP_RULES+="iptables -t nat -A POSTROUTING -o $INTERFACE -d $CIDR -j MASQUERADE; "
+    POST_DOWN_RULES+="iptables -t nat -D POSTROUTING -o $INTERFACE -d $CIDR -j MASQUERADE; "
+done
+
+cat > /etc/wireguard/wg0.conf <<- EOF
+[Interface]
+Address = ${wg_server_net}
+PrivateKey = $${PRIVATE_KEY}
+ListenPort = ${wg_server_port}
+PostUp   = $${POST_UP_RULES} iptables -A FORWARD -i %i -j ACCEPT; iptables -A FORWARD -o %i -j ACCEPT
+PostDown = $${POST_DOWN_RULES} iptables -D FORWARD -i %i -j ACCEPT; iptables -D FORWARD -o %i -j ACCEPT
+
+${peers}
+EOF
+
+# we go with the eip if it is provided
+if [ "${use_eip}" != "disabled" ]; then
+  INSTANCE_ID=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -s http://169.254.169.254/latest/meta-data/instance-id)
+  aws --region $${REGION} ec2 associate-address --allocation-id ${eip_id} --instance-id $${INSTANCE_ID}
+fi
+
+# Install the ssm if it is enabled (installed by default on Ubuntu Server22.04
+# LTS, 20.10 STR & 20.04, 18.04, and 16.04 LTS (with Snap))
+if [ "${install_ssm}" = "enabled" ]; then
+  # https://docs.aws.amazon.com/systems-manager/latest/userguide/agent-install-ubuntu-64-snap.html
+  systemctl enable snap.amazon-ssm-agent.amazon-ssm-agent.service
+  systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service
+fi
+
+# reduce MTU to prevent packet fragmentation with NAT
+ip link set dev $${INTERFACE} mtu 1500
+
+chown -R root:root /etc/wireguard/
+chmod -R og-rwx /etc/wireguard/*
+sed -i 's/#net.ipv4.ip_forward=1/net.ipv4.ip_forward=1/' /etc/sysctl.conf
+sysctl -p
+ufw allow ssh
+ufw allow ${wg_server_port}/udp
+ufw --force enable
+systemctl enable wg-quick@wg0.service
+systemctl start wg-quick@wg0.service

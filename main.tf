@@ -5,40 +5,11 @@ terraform {
     aws = {
       source = "hashicorp/aws"
     }
-    template = {
-      source = "hashicorp/template"
-    }
-  }
-}
-
-data "template_file" "user_data" {
-  template = file("${path.module}/templates/user-data.txt")
-
-  vars = {
-    wg_server_private_key = data.aws_ssm_parameter.wg_server_private_key.value
-    wg_server_net         = var.wg_server_net
-    wg_server_port        = var.wg_server_port
-    peers                 = join("\n", data.template_file.wg_client_data_json.*.rendered)
-    use_eip               = var.use_eip ? "enabled" : "disabled"
-    eip_id                = var.eip_id
-    wg_server_interface   = var.wg_server_interface
-  }
-}
-
-data "template_file" "wg_client_data_json" {
-  template = file("${path.module}/templates/client-data.tpl")
-  count    = length(var.wg_clients)
-
-  vars = {
-    client_name          = var.wg_clients[count.index].name
-    client_pub_key       = var.wg_clients[count.index].public_key
-    client_ip            = var.wg_clients[count.index].client_ip
-    persistent_keepalive = var.wg_persistent_keepalive
   }
 }
 
 # Automatically find the latest version of our operating system image (e.g. Ubuntu)
-data "aws_ami" "os" {
+data "aws_ami" "ubuntu" {
   most_recent = true
   filter {
     name   = "name"
@@ -61,24 +32,59 @@ locals {
   security_groups_ids = compact(concat(var.additional_security_group_ids, local.sg_wireguard_external))
 }
 
-resource "aws_launch_configuration" "wireguard_launch_config" {
-  name_prefix                 = "wireguard-${var.env}-"
-  image_id                    = var.ami_id != null ? var.ami_id : data.aws_ami.os.id
-  instance_type               = var.instance_type
-  key_name                    = var.ssh_key_id
-  iam_instance_profile        = (var.use_eip ? aws_iam_instance_profile.wireguard_profile[0].name : null)
-  user_data                   = data.template_file.user_data.rendered
-  security_groups             = local.security_groups_ids
-  associate_public_ip_address = var.use_eip
+locals {
+  launch_name_prefix = "wireguard-${var.env}-"
+  wg_client_data = templatefile("${path.module}/templates/client-data.tftpl", {
+    users                = var.wg_clients,
+    persistent_keepalive = var.wg_persistent_keepalive
+  })
+}
 
-  lifecycle {
-    create_before_destroy = true
+resource "aws_launch_template" "wireguard_launch_config" {
+  name_prefix   = local.launch_name_prefix
+  image_id      = var.ami_id == null ? data.aws_ami.ubuntu.id : var.ami_id
+  instance_type = var.instance_type
+  key_name      = var.ssh_key_id
+  iam_instance_profile {
+    arn = aws_iam_instance_profile.wireguard_profile.arn
+  }
+
+  metadata_options {
+    http_tokens = "required"
+  }
+
+  user_data = base64encode(templatefile("${path.module}/templates/user-data.tftpl", {
+    wg_server_private_key_param = var.wg_server_private_key_param
+    wg_server_net               = var.wg_server_net
+    wg_server_port              = var.wg_server_port
+    peers                       = local.wg_client_data
+    use_eip                     = var.use_eip ? "enabled" : "disabled"
+    install_ssm                 = var.install_ssm ? "enabled" : "disabled"
+    eip_id                      = var.eip_id
+    wg_server_interface         = var.wg_server_interface
+    arch                        = var.ami_arch
+    wg_allowed_cidr_blocks      = join(" ", var.wg_allowed_cidr_blocks)
+  }))
+
+  network_interfaces {
+    associate_public_ip_address = var.use_eip
+    security_groups             = local.security_groups_ids
+  }
+
+  tag_specifications {
+    resource_type = "instance"
+
+    tags = {
+      launch-template-name = local.launch_name_prefix
+      project              = "wireguard"
+      env                  = var.env
+      tf-managed           = "True"
+    }
   }
 }
 
 resource "aws_autoscaling_group" "wireguard_asg" {
-  name                 = aws_launch_configuration.wireguard_launch_config.name
-  launch_configuration = aws_launch_configuration.wireguard_launch_config.name
+  name                 = aws_launch_template.wireguard_launch_config.name
   min_size             = var.asg_min_size
   desired_capacity     = var.asg_desired_capacity
   max_size             = var.asg_max_size
@@ -87,19 +93,29 @@ resource "aws_autoscaling_group" "wireguard_asg" {
   termination_policies = ["OldestLaunchConfiguration", "OldestInstance"]
   target_group_arns    = var.target_group_arns
 
+  launch_template {
+    id      = aws_launch_template.wireguard_launch_config.id
+    version = aws_launch_template.wireguard_launch_config.latest_version
+  }
+
   lifecycle {
     create_before_destroy = true
   }
 
+  instance_refresh {
+    strategy = "Rolling"
+  }
+
   tag {
-    key = "Name"
-    value = aws_launch_configuration.wireguard_launch_config.name
+    key                 = "Name"
+    value               = aws_launch_template.wireguard_launch_config.name
     propagate_at_launch = true
   }
 
   tag {
-    key = "env"
-    value = var.env
+    key                 = "env"
+    value               = var.env
     propagate_at_launch = true
   }
 }
+

@@ -1,0 +1,6 @@
+%{ for user in users ~}
+[Peer]
+PublicKey = ${user.public_key}
+AllowedIPs = ${user.client_ip}
+PersistentKeepalive = ${persistent_keepalive}
+%{ endfor ~}
