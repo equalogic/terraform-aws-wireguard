@@ -41,6 +41,7 @@ Before using this module, you'll need to generate a key pair for your server and
 | `ami_owner_id`                  | `string`                   | Optional - defaults to `099720109477` (amazon)            | Look for an AMI with this owner account ID when automatically choosing an image.                                                                                                  |
 | `wg_server_interface`           | `string`                   | Optional                                                  | Server interface to route traffic to for installations forwarding traffic to private networks.                                                                                    |
 | `install_ssm`                   | `bool`                     | Optional - defaults to true                               | Install AWS Session Manager repository and package. Attach the necessary policy `arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM` to the EC2 Instance Role.              |
+| `wg_allowed_cidr_blocks`        | `list(string)`             | Optional - defaults to ["0.0.0.0/0"]                      | Defines IP ranges WireGuard clients can access, limiting full internet access if desired.                                                                                         |
 
 ## Examples
 

@@ -18,13 +18,22 @@ PRIVATE_KEY=$(
   --output=text --with-decryption
 )
 
+read -ra wg_allowed_cidr_blocks <<< "${wg_allowed_cidr_blocks}"
+
+POST_UP_RULES=""
+POST_DOWN_RULES=""
+for CIDR in "$${wg_allowed_cidr_blocks[@]}"; do
+    POST_UP_RULES+="iptables -t nat -A POSTROUTING -o $INTERFACE -d $CIDR -j MASQUERADE; "
+    POST_DOWN_RULES+="iptables -t nat -D POSTROUTING -o $INTERFACE -d $CIDR -j MASQUERADE; "
+done
+
 cat > /etc/wireguard/wg0.conf <<- EOF
 [Interface]
 Address = ${wg_server_net}
 PrivateKey = $${PRIVATE_KEY}
 ListenPort = ${wg_server_port}
-PostUp   = iptables -A FORWARD -i %i -j ACCEPT; iptables -A FORWARD -o %i -j ACCEPT; iptables -t nat -A POSTROUTING -o $${INTERFACE} -j MASQUERADE
-PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -D FORWARD -o %i -j ACCEPT; iptables -t nat -D POSTROUTING -o $${INTERFACE} -j MASQUERADE
+PostUp   = $${POST_UP_RULES} iptables -A FORWARD -i %i -j ACCEPT; iptables -A FORWARD -o %i -j ACCEPT
+PostDown = $${POST_DOWN_RULES} iptables -D FORWARD -i %i -j ACCEPT; iptables -D FORWARD -o %i -j ACCEPT
 
 ${peers}
 EOF

@@ -63,6 +63,7 @@ resource "aws_launch_template" "wireguard_launch_config" {
     eip_id                      = var.eip_id
     wg_server_interface         = var.wg_server_interface
     arch                        = var.ami_arch
+    wg_allowed_cidr_blocks      = join(" ", var.wg_allowed_cidr_blocks)
   }))
 
   network_interfaces {

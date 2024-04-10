@@ -78,6 +78,12 @@ variable "additional_security_group_ids" {
   description = "Additional security groups if provided, default empty."
 }
 
+variable "wg_allowed_cidr_blocks" {
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+  description = "Defines IP ranges WireGuard clients can access, limiting full internet access if desired."
+}
+
 variable "target_group_arns" {
   type        = list(string)
   default     = null
