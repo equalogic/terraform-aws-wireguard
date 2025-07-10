@@ -5,35 +5,6 @@ terraform {
     aws = {
       source = "hashicorp/aws"
     }
-    template = {
-      source = "hashicorp/template"
-    }
-  }
-}
-
-data "template_file" "user_data" {
-  template = file("${path.module}/templates/user-data.txt")
-
-  vars = {
-    wg_server_private_key = data.aws_ssm_parameter.wg_server_private_key.value
-    wg_server_net         = var.wg_server_net
-    wg_server_port        = var.wg_server_port
-    peers                 = join("\n", data.template_file.wg_client_data_json.*.rendered)
-    use_eip               = var.use_eip ? "enabled" : "disabled"
-    eip_id                = var.eip_id
-    wg_server_interface   = var.wg_server_interface
-  }
-}
-
-data "template_file" "wg_client_data_json" {
-  template = file("${path.module}/templates/client-data.tpl")
-  count    = length(var.wg_clients)
-
-  vars = {
-    client_name          = var.wg_clients[count.index].name
-    client_pub_key       = var.wg_clients[count.index].public_key
-    client_ip            = var.wg_clients[count.index].client_ip
-    persistent_keepalive = var.wg_persistent_keepalive
   }
 }
 
@@ -62,12 +33,27 @@ locals {
 }
 
 resource "aws_launch_configuration" "wireguard_launch_config" {
-  name_prefix                 = "wireguard-${var.env}-"
-  image_id                    = var.ami_id != null ? var.ami_id : data.aws_ami.os.id
-  instance_type               = var.instance_type
-  key_name                    = var.ssh_key_id
-  iam_instance_profile        = (var.use_eip ? aws_iam_instance_profile.wireguard_profile[0].name : null)
-  user_data                   = data.template_file.user_data.rendered
+  name_prefix          = "wireguard-${var.env}-"
+  image_id             = var.ami_id != null ? var.ami_id : data.aws_ami.os.id
+  instance_type        = var.instance_type
+  key_name             = var.ssh_key_id
+  iam_instance_profile = (var.use_eip ? aws_iam_instance_profile.wireguard_profile[0].name : null)
+  user_data = templatefile("${path.module}/templates/user-data.txt", {
+    wg_server_private_key = data.aws_ssm_parameter.wg_server_private_key.value
+    wg_server_net         = var.wg_server_net
+    wg_server_port        = var.wg_server_port
+    peers = join("\n", [
+      for client in var.wg_clients : templatefile("${path.module}/templates/client-data.tpl", {
+        client_name          = client.name
+        client_pub_key       = client.public_key
+        client_ip            = client.client_ip
+        persistent_keepalive = var.wg_persistent_keepalive
+      })
+    ])
+    use_eip             = var.use_eip ? "enabled" : "disabled"
+    eip_id              = var.eip_id
+    wg_server_interface = var.wg_server_interface
+  })
   security_groups             = local.security_groups_ids
   associate_public_ip_address = var.use_eip
 
@@ -92,14 +78,14 @@ resource "aws_autoscaling_group" "wireguard_asg" {
   }
 
   tag {
-    key = "Name"
-    value = aws_launch_configuration.wireguard_launch_config.name
+    key                 = "Name"
+    value               = aws_launch_configuration.wireguard_launch_config.name
     propagate_at_launch = true
   }
 
   tag {
-    key = "env"
-    value = var.env
+    key                 = "env"
+    value               = var.env
     propagate_at_launch = true
   }
 }
