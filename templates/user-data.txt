@@ -22,7 +22,7 @@ if [ "${use_eip}" != "disabled" ]; then
 fi
 
 # reduce MTU to prevent packet fragmentation with NAT
-ip link set dev ${wg_server_interface} mtu 1500
+ip link set dev ${wg_server_interface} mtu 1420
 
 chown -R root:root /etc/wireguard/
 chmod -R og-rwx /etc/wireguard/*
