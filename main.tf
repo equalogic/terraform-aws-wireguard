@@ -32,13 +32,17 @@ locals {
   security_groups_ids = compact(concat(var.additional_security_group_ids, local.sg_wireguard_external))
 }
 
-resource "aws_launch_configuration" "wireguard_launch_config" {
-  name_prefix          = "wireguard-${var.env}-"
-  image_id             = var.ami_id != null ? var.ami_id : data.aws_ami.os.id
-  instance_type        = var.instance_type
-  key_name             = var.ssh_key_id
-  iam_instance_profile = (var.use_eip ? aws_iam_instance_profile.wireguard_profile[0].name : null)
-  user_data = templatefile("${path.module}/templates/user-data.txt", {
+resource "aws_launch_template" "wireguard_launch_template" {
+  name_prefix   = "wireguard-${var.env}-"
+  image_id      = var.ami_id != null ? var.ami_id : data.aws_ami.os.id
+  instance_type = var.instance_type
+  key_name      = var.ssh_key_id
+
+  iam_instance_profile {
+    arn = var.use_eip ? aws_iam_instance_profile.wireguard_profile[0].arn : null
+  }
+
+  user_data = base64encode(templatefile("${path.module}/templates/user-data.txt", {
     wg_server_private_key = data.aws_ssm_parameter.wg_server_private_key.value
     wg_server_net         = var.wg_server_net
     wg_server_port        = var.wg_server_port
@@ -53,9 +57,12 @@ resource "aws_launch_configuration" "wireguard_launch_config" {
     use_eip             = var.use_eip ? "enabled" : "disabled"
     eip_id              = var.eip_id
     wg_server_interface = var.wg_server_interface
-  })
-  security_groups             = local.security_groups_ids
-  associate_public_ip_address = var.use_eip
+  }))
+
+  network_interfaces {
+    associate_public_ip_address = var.use_eip
+    security_groups             = local.security_groups_ids
+  }
 
   lifecycle {
     create_before_destroy = true
@@ -63,8 +70,7 @@ resource "aws_launch_configuration" "wireguard_launch_config" {
 }
 
 resource "aws_autoscaling_group" "wireguard_asg" {
-  name                 = aws_launch_configuration.wireguard_launch_config.name
-  launch_configuration = aws_launch_configuration.wireguard_launch_config.name
+  name_prefix          = "wireguard-${var.env}-"
   min_size             = var.asg_min_size
   desired_capacity     = var.asg_desired_capacity
   max_size             = var.asg_max_size
@@ -77,9 +83,14 @@ resource "aws_autoscaling_group" "wireguard_asg" {
     create_before_destroy = true
   }
 
+  launch_template {
+    id      = aws_launch_template.wireguard_launch_template.id
+    version = "$Latest"
+  }
+
   tag {
     key                 = "Name"
-    value               = aws_launch_configuration.wireguard_launch_config.name
+    value               = aws_launch_template.wireguard_launch_template.name
     propagate_at_launch = true
   }
 
