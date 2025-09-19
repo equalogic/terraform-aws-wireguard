@@ -33,7 +33,9 @@ locals {
 }
 
 resource "aws_launch_template" "wireguard_launch_template" {
-  name_prefix   = "wireguard-${var.env}-"
+  name_prefix            = "wireguard-${var.env}-"
+  update_default_version = true
+
   image_id      = var.ami_id != null ? var.ami_id : data.aws_ami.os.id
   instance_type = var.instance_type
   key_name      = var.ssh_key_id
