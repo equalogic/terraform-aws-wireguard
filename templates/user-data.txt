@@ -14,7 +14,7 @@ write_files:
       PostUp   = iptables -A FORWARD -i %i -j ACCEPT; iptables -A FORWARD -o %i -j ACCEPT; iptables -t nat -A POSTROUTING -o ${wg_server_interface} -j MASQUERADE
       PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -D FORWARD -o %i -j ACCEPT; iptables -t nat -D POSTROUTING -o ${wg_server_interface}
 
-      ${peers}
+${peers}
 
   - path: /etc/wireguard/wg-bootstrap.sh
     owner: root:root
@@ -23,12 +23,33 @@ write_files:
       #!/bin/bash
       set -eux
 
-      # Install packages based on Ubuntu version
+      # Detect Ubuntu release
       RELEASE=$(lsb_release -rs)
+
+      # Install packages
       if [ "$RELEASE" = "20.04" ]; then
+        apt-get update -y
         apt-get install -y wireguard-dkms wireguard-tools awscli
       else
-        apt-get install -y wireguard-tools awscli2
+        # For 22.04/24.04
+        apt-get update -y
+        apt-get install -y wireguard-tools unzip curl
+
+        # Install AWS CLI v2 if not already present
+        if ! command -v aws >/dev/null 2>&1 || [[ $(aws --version 2>&1) != aws-cli/2* ]]; then
+          ARCH=$(uname -m)
+          if [ "$ARCH" = "aarch64" ]; then
+            AWSCLI_ZIP="https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip"
+          else
+            AWSCLI_ZIP="https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip"
+          fi
+
+          TMP_DIR=$(mktemp -d)
+          curl "$AWSCLI_ZIP" -o "$TMP_DIR/awscliv2.zip"
+          unzip "$TMP_DIR/awscliv2.zip" -d "$TMP_DIR"
+          "$TMP_DIR/aws/install" --bin-dir /usr/local/bin --install-dir /usr/local/aws-cli
+          rm -rf "$TMP_DIR"
+        fi
       fi
 
       # Associate Elastic IP if needed
@@ -38,13 +59,17 @@ write_files:
         aws --region $REGION ec2 associate-address --allocation-id ${eip_id} --instance-id $INSTANCE_ID
       fi
 
-      # Networking, firewall, and WireGuard service
+      # Networking and MTU
       ip link set dev ${wg_server_interface} mtu 1420
       sed -i 's/#net.ipv4.ip_forward=1/net.ipv4.ip_forward=1/' /etc/sysctl.conf
       sysctl -p
+
+      # Firewall rules
       ufw allow ssh
       ufw allow ${wg_server_port}/udp
       ufw --force enable
+
+      # Enable and start WireGuard
       systemctl enable wg-quick@wg0.service
       systemctl start wg-quick@wg0.service
 
