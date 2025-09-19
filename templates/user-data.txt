@@ -52,11 +52,22 @@ ${peers}
         fi
       fi
 
-      # Associate Elastic IP if needed
+      # Associate Elastic IP if requested
       if [ "${use_eip}" != "disabled" ]; then
-        INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
-        REGION=$(curl -fsq http://169.254.169.254/latest/meta-data/placement/availability-zone | sed 's/[a-z]$//')
-        aws --region $REGION ec2 associate-address --allocation-id ${eip_id} --instance-id $INSTANCE_ID
+        # Get IMDSv2 token
+        TOKEN=$(curl -sX PUT "http://169.254.169.254/latest/api/token" \
+                  -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+
+        INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" \
+                           http://169.254.169.254/latest/meta-data/instance-id)
+        REGION=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" \
+                       http://169.254.169.254/latest/meta-data/placement/availability-zone | sed 's/[a-z]$//')
+
+        if [ -n "$INSTANCE_ID" ] && [ -n "$REGION" ]; then
+          aws --region "$REGION" ec2 associate-address \
+              --allocation-id "${eip_id}" \
+              --instance-id "$INSTANCE_ID"
+        fi
       fi
 
       # Networking and MTU
